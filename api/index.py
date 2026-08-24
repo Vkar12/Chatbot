@@ -14,29 +14,29 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent,
-    JoinEvent,
     MemberJoinedEvent
 )
 
 app = Flask(__name__)
 
-# Konfigurasi Token & Secret
-CHANNEL_ACCESS_TOKEN = os.getenv ('0ItZ8oKmmMOnK36rH/rfvejjbk747FPnnduh+ut53jovviD4hDaD5IHd3VKqvZNessFKvT+6G3MtJ5ykXL7yX3LqSOdJHJBDco8Q0t5/VJwFJqs0QwwPLKSneZPM9A8IIpxlfatETqvdFLEcLElYmgdB04t89/1O/w1cDnyilFU=')
-CHANNEL_SECRET = os.getenv ('3e144619ae7414a083b43427f5ed2b53')
+# Konfigurasi Token & Secret LINE
+CHANNEL_ACCESS_TOKEN = '0ItZ8oKmmMOnK36rH/rfvejjbk747FPnnduh+ut53jovviD4hDaD5IHd3VKqvZNessFKvT+6G3MtJ5ykXL7yX3LqSOdJHJBDco8Q0t5/VJwFJqs0QwwPLKSneZPM9A8IIpxlfatETqvdFLEcLElYmgdB04t89/1O/w1cDnyilFU='
+CHANNEL_SECRET = '3e144619ae7414a083b43427f5ed2b53'
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
 # Database Sederhana di Memory
-user_points = {}  # {user_id: points}
-dadu_game = {}    # {group_id: {user_id: score}}
+user_points = {}
+SAWNASTY_IMAGE_URL = "https://link-gambar-anda.com/sawnasty-welcome.jpg"
 
-# URL Gambar Karakter Sawnasty
-SAWNASTY_IMAGE_URL = "https://imgur.com/a/zs2g93q"
-
-@app.route("/", methods=["GET"])
+# Route Root agar Vercel & LINE Verify tidak Timeout (Error 404/500)
+@app.route("/", methods=['GET'])
 def home():
-    return "Nasty Potter Bot is Online! 🧙‍♂️🔥"
+    return "Bot status: Active", 200
+
+# Endpoint Webhook untuk LINE
+@app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
@@ -45,15 +45,20 @@ def callback():
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
-    return 'OK'
 
-# --- WELCOME MESSAGE ---
+    return 'OK', 200
+
+# Event: Member Baru Bergabung di Grup
 @app.event_handler(MemberJoinedEvent)
 def handle_member_joined(event):
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         
-        reply_text = "Selamat datang di grup Sawnasty! 🦅\nJaga sikap atau Aeto bakal tindak tegas!\nKetik !help untuk melihat menu perintah."
+        reply_text = (
+            "Selamat datang di grup Sawnasty! 🦅\n"
+            "Jaga sikap atau Nasty bakal tindak tegas Nih!\n\n"
+            "Ketik !help untuk melihat menu perintah."
+        )
         
         line_bot_api.reply_message(
             ReplyMessageRequest(
@@ -65,22 +70,21 @@ def handle_member_joined(event):
             )
         )
 
-# --- FUNGSI PENGOLAH PESAN TULISAN ---
+# Event: Pesan Teks Masuk
 @app.event_handler(MessageEvent, message_content_type=TextMessageContent)
 def handle_message(event):
     user_id = event.source.user_id
     user_message = event.message.text.strip()
     user_message_lower = user_message.lower()
     
-    # Penambahan koin/poin keaktifan per chat
+    # Tambah poin keaktifan
     user_points[user_id] = user_points.get(user_id, 0) + 1
-    
     reply_messages = []
 
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
 
-        # 0. Menampilkan Perintah Help / Menu
+        # 0. Menu Help
         if user_message_lower in ["!help", "!menu"]:
             help_text = (
                 "📜 MENU PERINTAH SAUNASTY BOT 📜\n\n"
@@ -97,11 +101,11 @@ def handle_message(event):
             )
             reply_messages.append(TextMessage(text=help_text))
 
-        # 1. Menampilkan Nama & Profil Admin
+        # 1. Profil Admin
         elif user_message_lower == "!admin":
-            reply_messages.append(TextMessage(text="👑 ADMIN SAUNASTY 👑\nNama: Admin Sawnasty\nStatus: Active\nContact: @charmingbanget_"))
+            reply_messages.append(TextMessage(text="👑 ADMIN SAWNASTY 👑\nNama: Admin Sawnasty\nStatus: Active\nContact: @charmingbanget_"))
 
-        # 2. Game Sederhana (Tebak Angka 1-5)
+        # 2. Game Tebak Angka
         elif user_message_lower.startswith("!tebak"):
             parts = user_message.split()
             if len(parts) > 1 and parts[1].isdigit():
@@ -115,16 +119,16 @@ def handle_message(event):
             else:
                 reply_messages.append(TextMessage(text="Ketik: !tebak [1-5]\nContoh: !tebak 3"))
 
-        # 3. Menjawab Pertanyaan Ya/Tidak
+        # 3. Ramalan Ya/Tidak
         elif user_message_lower.startswith("!tanya"):
             jawaban_list = ["Ya, pasti!", "Gak mungkin, mimpi kamu.", "Kelihatannya iya.", "Tidak sama sekali.", "Bisa jadi sih."]
             reply_messages.append(TextMessage(text=f"🔮 Aeto berkata: {random.choice(jawaban_list)}"))
 
-        # 4. Getcall Dalam Group
+        # 4. Panggil Member Grup
         elif user_message_lower in ["!getcall", "!panggil"]:
-            reply_messages.append(TextMessage(text="📢 PERHATIAN SEMUA MEMBER SAUNASTY! 📢\nAda panggilan darurat di grup! Kumpul sekarang! 🔥"))
+            reply_messages.append(TextMessage(text="📢 PERHATIAN SEMUA MEMBER SAWNASTY! 📢\nAda panggilan darurat di grup! Kumpul sekarang! 🔥"))
 
-        # 5. Get Profil Pengirim
+        # 5. Cek Profil Pengirim
         elif user_message_lower == "!profil":
             try:
                 profile = line_bot_api.get_profile(user_id)
@@ -132,11 +136,11 @@ def handle_message(event):
             except Exception:
                 reply_messages.append(TextMessage(text="Gagal mengambil data profil."))
 
-        # 6. Respon Chat Otomatis (Sad / Trigger Kata)
+        # 6. Respon Chat Otomatis
         elif "sad" in user_message_lower:
             reply_messages.append(TextMessage(text="Hidup memang kadang tidak adil, jadi gausah sad sob."))
 
-        # 8. Leaderboard Poin Keaktifan
+        # 7. Leaderboard
         elif user_message_lower == "!top":
             sorted_points = sorted(user_points.items(), key=lambda item: item[1], reverse=True)[:5]
             lb_text = "🏆 LEADERBOARD MEMBER TERAKTIF 🏆\n"
@@ -147,10 +151,9 @@ def handle_message(event):
                 except Exception:
                     name = uid[:6]
                 lb_text += f"{rank}. {name} - {pts} PTS\n"
-                
             reply_messages.append(TextMessage(text=lb_text))
 
-        # 9. Mini RPG / Dadu Battle (!dadu)
+        # 8. Mini RPG Dadu
         elif user_message_lower == "!dadu":
             dadu_user = random.randint(1, 6)
             dadu_bot = random.randint(1, 6)
@@ -165,7 +168,7 @@ def handle_message(event):
 
             reply_messages.append(TextMessage(text=f"🎲 DADU BATTLE 🎲\nDadu Kamu: {dadu_user}\nDadu Aeto: {dadu_bot}\n\nHasil: {hasil}"))
 
-        # Kirim Balasan jika ada pesan yang dipicu
+        # Kirim Balasan Pesan
         if reply_messages:
             line_bot_api.reply_message(
                 ReplyMessageRequest(
@@ -173,4 +176,3 @@ def handle_message(event):
                     messages=reply_messages
                 )
             )
-
