@@ -20,8 +20,8 @@ from linebot.v3.webhooks import (
 app = Flask(__name__)
 
 # Konfigurasi Token & Secret LINE
-CHANNEL_ACCESS_TOKEN = '0ItZ8oKmmMOnK36rH/rfvejjbk747FPnnduh+ut53jovviD4hDaD5IHd3VKqvZNessFKvT+6G3MtJ5ykXL7yX3LqSOdJHJBDco8Q0t5/VJwFJqs0QwwPLKSneZPM9A8IIpxlfatETqvdFLEcLElYmgdB04t89/1O/w1cDnyilFU='
-CHANNEL_SECRET = '3e144619ae7414a083b43427f5ed2b53'
+CHANNEL_ACCESS_TOKEN = 'zAvsiCqY0fGwMakDGwmcr0Fu+548AF1fdIVyOrG2xIH8ASXrGoF5lugj/y44T/Z7ssFKvT+6G3MtJ5ykXL7yX3LqSOdJHJBDco8Q0t5/VJzbuU/LxqGzhsByMd08WKdVDpY3M7JKWXdD26qvLvBksgdB04t89/1O/w1cDnyilFU='
+CHANNEL_SECRET = 'cc2a1f0263cb6f5fabb34e3e14d407a5'
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
