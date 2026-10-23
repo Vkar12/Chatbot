@@ -650,4 +650,4 @@ def handle_message(event):
             )
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5001)
+    app.run(host='127.0.0.1', port=8080)
