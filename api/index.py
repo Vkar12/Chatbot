@@ -2,6 +2,11 @@ import os
 import random
 from datetime import datetime, timedelta
 from flask import Flask, request, abort
+from sambung_kata import proses_sambung_kata
+from tarot_game import proses_tarot
+from whitelist_admin import cek_izin_admin
+
+
 
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -35,6 +40,7 @@ CHANNEL_SECRET = os.getenv(
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
+
 
 # Database Sederhana di Memory
 user_points = {}  # {user_id: points}
@@ -208,6 +214,10 @@ def handle_message(event):
     user_id = event.source.user_id
     user_message = event.message.text.strip()
     user_message_lower = user_message.lower()
+    print(f"User ID LINE: {user_id}")
+    print("" \
+    "abc")
+
     
     # Penambahan poin keaktifan per chat
     user_points[user_id] = user_points.get(user_id, 0) + 1
@@ -220,13 +230,33 @@ def handle_message(event):
         def get_user_name(uid):
             if group_id:
                 try:
-                    return line_bot_api.get_group_member_profile(group_id, uid).display_name
+                    return line_bot_api.get_group_member_profile(
+                        group_id, uid
+                    ).display_name
                 except Exception:
                     pass
+
             try:
                 return line_bot_api.get_profile(uid).display_name
             except Exception:
                 return f"User ({uid[:5]})"
+
+        # --- WHITELIST PERINTAH ADMIN ---
+        pesan_penolakan = cek_izin_admin(
+            user_id=user_id,
+            pesan=user_message,
+            get_nama=get_user_name
+        )
+
+        if pesan_penolakan is not None:
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=pesan_penolakan)]
+                )
+            )
+            return
+
 
         # --- DETEKSI MENTION USER OFF ---
         if hasattr(event.message, 'mention') and event.message.mention:
@@ -404,8 +434,8 @@ def handle_message(event):
                     "• !next : Lanjut ke pertanyaan berikutnya\n"
                     "• !stopquiz : Menghentikan sesi quiz\n\n"
                     "🎮 *GAME & HIBURAN*\n"
-                    "• !ronda : Ikut ronda malam bareng Satpam Nasty (+/- PTS)\n"
-                    "• !tilang : Cek apakah kamu kena razia dadakan hari ini\n"
+                    "• !sambungkata create : Memulai game sambung kata  (+PTS)\n"
+                    "• !tarot : Memulai game Tarot\n"
                     "• !tanya [pertanyaan] : Tanya ramalan Ya/Tidak ke Nasty\n\n"
                     "👮‍♂️ *STATUS & POS SATPAM*\n"
                     "• !off [alasan] : Set status kamu sedang off/sibuk\n"
@@ -441,37 +471,6 @@ def handle_message(event):
                     name = get_user_name(uid)
                     lb_text += f"{rank}. {name} - {pts} PTS\n"
                 reply_messages.append(TextMessage(text=lb_text))
-
-            elif user_message_lower in ["!ronda", "!patroli"]:
-                kejadian = [
-                    ("🚔 Kamu berhasil nangkap maling jemuran! (+15 PTS)", 15),
-                    ("🐕 Kamu dikejar anjing warga! (0 PTS)", 0),
-                    ("☕ Ngopi bareng Satpam Nasty. (+5 PTS)", 5)
-                ]
-                teks, poin = random.choice(kejadian)
-                user_points[user_id] = max(0, user_points.get(user_id, 0) + poin)
-                reply_messages.append(TextMessage(text=f"👮‍♂️ *LAPORAN RONDA SATPAM NASTY*\n\n{teks}"))
-
-            elif user_message_lower == "!tilang":
-                user_name = get_user_name(user_id) if 'get_user_name' in locals() else "Member"
-                
-                # Daftar skenario tilang beserta perubahan poin (teks, poin_change)
-                skenario_tilang = [
-                    ("Kena tilang karena cuma nyimak (SR) dan gak pernah chat! Denda -5 PTS", -5),
-                    ("Surat-surat lengkap (SIM, STNK, Helm SNI). Lolos razia! Bonus +5 PTS", 5),
-                    ("Kena tilang karena sering kirim stiker gaje berturut-turut! Denda -5 PTS", -5),
-                    ("Kena tilang karena ngetag ALL tapi gak ada kepentingan! Denda -10 PTS", -10),
-                    ("Lolos razia karena rajin ngeramaiin grup tiap hari! Bonus +10 PTS", 10),
-                    ("Kena tilang karena ketahuan typo mulu pas ngetik! Denda -3 PTS", -3),
-                    ("Kena tilang karena parkir motor sembarangan di pos ronda Nasty! Denda -5 PTS", -5),
-                    ("Kena tilang karena ketahuan flexing tanpa izin Satpam! Denda -5 PTS", -5),
-                    ("Kena tilang karena sibuk pacaran di chat grup, bikin jomblo iri! Denda -10 PTS", -10),
-                    ("Lolos razia! Dikasih kopi gratis sama Satpam Nasty karena sopan. Bonus +5 PTS", 5),
-                    ("Kena tilang karena nyolong stiker member lain tanpa izin! Denda -5 PTS", -5),
-                    ("Kena tilang karena ketahuan *ghosting* pas diajak main quiz! Denda -5 PTS", -5)
-                ]
-
-                teks_hasil, poin_change = random.choice(skenario_tilang)
 
                 # Update poin user
                 if isinstance(user_points.get(user_id), dict):
@@ -612,6 +611,35 @@ def handle_message(event):
                         f"💰 Kekayaan: {kekayaan}"
                     )
                     reply_messages.append(TextMessage(text=fallback_text))
+                    
+        # --- INTEGRASI GAME TAROT ---
+        if not reply_messages:
+            balasan_tarot = proses_tarot(
+                chat_id=group_id or user_id,
+                user_id=user_id,
+                pesan=user_message,
+                get_nama=get_user_name
+            )
+
+            if balasan_tarot is not None:
+                reply_messages.append(TextMessage(text=balasan_tarot))
+
+        # --- INTEGRASI GAME SAMBUNG KATA ---
+        if not reply_messages:
+            chat_id = group_id or user_id
+
+            balasan_sambung_kata = proses_sambung_kata(
+                chat_id=chat_id,
+                user_id=user_id,
+                pesan=user_message,
+                get_nama=get_user_name
+            )
+
+            if balasan_sambung_kata is not None:
+                reply_messages.append(
+                    TextMessage(text=balasan_sambung_kata)
+                )
+
         # Kirim Balasan jika ada pesan dalam array
         if reply_messages:
             line_bot_api.reply_message(
@@ -621,6 +649,5 @@ def handle_message(event):
                 )
             )
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5001)
