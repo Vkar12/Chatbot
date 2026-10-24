@@ -465,34 +465,24 @@ def handle_message(event):
                 reply_messages.append(TextMessage(text=f"👤 PROFIL KAMU\nNama LINE: {user_name}\nStatus: {st}\nTotal Poin Keaktifan: {user_points.get(user_id, 0)} PTS"))
 
             elif user_message_lower == "!top":
-                sorted_points = sorted(user_points.items(), key=lambda item: item[1], reverse=True)[:5]
-                lb_text = "🏆 LEADERBOARD MEMBER TERAKTIF 🏆\n"
-                for rank, (uid, pts) in enumerate(sorted_points, start=1):
-                    name = get_user_name(uid)
-                    lb_text += f"{rank}. {name} - {pts} PTS\n"
+                sorted_points = sorted(
+                    user_points.items(),
+                    key=lambda item: item[1],
+                    reverse=True
+                )[:5]
+
+                lb_text = "🏆 LEADERBOARD MEMBER TERAKTIF 🏆\\n\\n"
+
+                if not sorted_points:
+                    lb_text += "Belum ada data keaktifan member."
+                else:
+                    for rank, (uid, pts) in enumerate(sorted_points, start=1):
+                        name = get_user_name(uid)
+                        lb_text += f"{rank}. {name} - {pts} PTS\\n"
+
                 reply_messages.append(TextMessage(text=lb_text))
 
-                # Update poin user
-                if isinstance(user_points.get(user_id), dict):
-                    current_pts = user_points[user_id].get("points", 0)
-                    user_points[user_id]["points"] = max(0, current_pts + poin_change)
-                    total_pts = user_points[user_id]["points"]
-                else:
-                    current_pts = user_points.get(user_id, 0)
-                    user_points[user_id] = max(0, current_pts + poin_change)
-                    total_pts = user_points[user_id]
-
-                reply_text = (
-                    f"🚨 *RAZIA DADAKAN SATPAM NASTY* 🚨\n\n"
-                    f"👤 Target: {user_name}\n"
-                    f"📝 Hasil Pemeriksaan:\n{teks_hasil}\n\n"
-                    f"📊 Total Poin Sekarang: {total_pts} PTS"
-                )
-                
-                reply_messages.append(TextMessage(text=reply_text))
-
-           # --- FITUR JODOH SAWNASTY (FLEX MESSAGE) ---
-            elif user_message_lower in ["!jodoh", "!jodohku", "!match"]:
+            # --- FITUR JODOH SAWNASTY (FLEX MESSAGE) ---\n            elif user_message_lower in ["!jodoh", "!jodohku", "!match"]:
                 user_name = get_user_name(user_id)
 
                 # 1. Ambil semua ID user yang pernah interaksi/terdata (selain diri sendiri)
