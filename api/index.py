@@ -5,6 +5,7 @@ from flask import Flask, request, abort
 from sambung_kata import proses_sambung_kata
 from tarot_game import proses_tarot
 from whitelist_admin import cek_izin_admin
+from werewolf_game import proses_game
 
 
 
@@ -15,6 +16,7 @@ from linebot.v3.messaging import (
     ApiClient,
     MessagingApi,
     ReplyMessageRequest,
+    PushMessageRequest,
     TextMessage,
     ImageMessage,
     FlexMessage,
@@ -29,14 +31,8 @@ from linebot.v3.webhooks import (
 app = Flask(__name__)
 
 # 1. Token & Secret LINE (Disarankan menggunakan Environment Variables)
-CHANNEL_ACCESS_TOKEN = os.getenv(
-    "LINE_CHANNEL_ACCESS_TOKEN",
-    "ahyfh8AWxAywi+kMmsrtAmyLjqaO7bNF+xkd1647BSl9+N/t8cmgD3pvXlw8fZBCssFKvT+6G3MtJ5ykXL7yX3LqSOdJHJBDco8Q0t5/VJxWvfrddzFFFqy+SbpYMXiQ2Nouux6adOw3LJXwa+bR0gdB04t89/1O/w1cDnyilFU="
-)
-CHANNEL_SECRET = os.getenv(
-    "LINE_CHANNEL_SECRET",
-    "2a0bdf110f1cb36d25d5bc972a6722e9"
-)
+CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
+CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
@@ -226,6 +222,15 @@ def handle_message(event):
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         group_id = getattr(event.source, 'group_id', None)
+
+        # Push helper memakai ApiClient baru agar tetap bisa dipakai oleh timer otomatis.
+        def push_text(to_id, text):
+            with ApiClient(configuration) as push_client:
+                push_api = MessagingApi(push_client)
+                push_api.push_message(
+                    PushMessageRequest(to=to_id, messages=[TextMessage(text=text)])
+                )
+
 
         def get_user_name(uid):
             if group_id:
@@ -640,6 +645,20 @@ def handle_message(event):
                     TextMessage(text=balasan_sambung_kata)
                 )
 
+        # --- INTEGRASI GAME WEREWOLF: DESA TERKUTUK ---
+        if not reply_messages:
+            chat_id = group_id or user_id
+            balasan_game = proses_game(
+                chat_id=chat_id,
+                user_id=user_id,
+                pesan=user_message,
+                get_nama=get_user_name,
+                kirim_pesan=push_text,
+                kirim_pribadi=push_text
+            )
+            if balasan_game is not None:
+                reply_messages.append(TextMessage(text=balasan_game))
+
         # Kirim Balasan jika ada pesan dalam array
         if reply_messages:
             line_bot_api.reply_message(
@@ -650,4 +669,4 @@ def handle_message(event):
             )
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5001)
+    app.run(host='127.0.0.1', port=8080)
