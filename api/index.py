@@ -215,6 +215,7 @@ def handle_message(event):
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         group_id = getattr(event.source, 'group_id', None)
+        is_private = group_id is None
         chat_id = group_id or user_id
         chat_points.setdefault(chat_id, {})[user_id] = chat_points.setdefault(chat_id, {}).get(user_id, 0) + 1
 
@@ -470,7 +471,6 @@ def handle_message(event):
                 reply_messages.append(TextMessage(text=f"👤 PROFIL KAMU\nNama LINE: {user_name}\nStatus: {st}\nTotal Poin Keaktifan: {user_points.get(user_id, 0)} PTS"))
 
             elif user_message_lower == "!top":
-                # Leaderboard hanya menampilkan anggota chat/grup ini.
                 points_in_chat = chat_points.get(chat_id, {})
                 sorted_points = sorted(
                     points_in_chat.items(),
@@ -493,13 +493,11 @@ def handle_message(event):
             elif user_message_lower in ["!jodoh", "!jodohku", "!match"]:
                 user_name = get_user_name(user_id)
 
-                # 1. Ambil semua ID user yang pernah interaksi/terdata (selain diri sendiri)
                 available_members = [
                     uid for uid in chat_points.get(chat_id, {}).keys()
                     if uid != user_id
                 ]
 
-                # 2. Jika ada member lain di data, pilih acak. Jika tidak ada, gunakan default fallback
                 if available_members:
                     partner_uid = random.choice(available_members)
                     partner_name = get_user_name(partner_uid)
@@ -642,14 +640,15 @@ def handle_message(event):
 
         # --- INTEGRASI GAME WEREWOLF: DESA TERKUTUK ---
         if not reply_messages:
-            chat_id = group_id or user_id
+            target_game_chat_id = group_id or user_id
             balasan_game = proses_game(
-                chat_id=chat_id,
+                chat_id=target_game_chat_id,
                 user_id=user_id,
                 pesan=user_message,
                 get_nama=get_user_name,
                 kirim_pesan=push_text,
-                kirim_pribadi=push_text
+                kirim_pribadi=push_text,
+                is_private=is_private
             )
             if balasan_game is not None:
                 reply_messages.append(TextMessage(text=balasan_game))
@@ -659,7 +658,7 @@ def handle_message(event):
             line_bot_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
-                    messages=reply_messages[:5]  # Maksimal LINE hanya memperbolehkan 5 pesan per balasan
+                    messages=reply_messages[:5]
                 )
             )
 
