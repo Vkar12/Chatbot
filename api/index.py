@@ -8,8 +8,6 @@ from whitelist_admin import cek_izin_admin
 from werewolf_game import proses_game
 from nasty_truth_dare import proses_truth_dare
 
-
-
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
@@ -38,7 +36,6 @@ CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "2a0bdf110f1cb36d25d5bc972a672
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-
 # Database Sederhana di Memory
 user_points = {}  # Total poin per user, dipakai oleh !profil
 chat_points = {}  # Poin per chat/grup: {chat_id: {user_id: points}}
@@ -50,7 +47,7 @@ quiz_state = {
     "players": set(),
     "current_question_index": 0,
     "questions": [
-         {"q": "Monumen Nasional (Monas) terletak di kota apa?", "a": "jakarta"},
+        {"q": "Monumen Nasional (Monas) terletak di kota apa?", "a": "jakarta"},
         {"q": "Candi Borobudur peninggalan dari agama apa?", "a": ["buddha","budha"]},
         {"q": "Berapa hasil dari 12 x 12?", "a": "144"},
         {"q": "Ibu kota dari negara Jepang adalah?", "a": "tokyo"},
@@ -150,11 +147,9 @@ quiz_state = {
         {"q": "Simbol sila ke-5 Pancasila adalah padi dan...?", "a": "kapas"},
         {"q": "Pakaian adat khas Jawa untuk pria yang dipasang di kepala disebut?", "a": "blangkon"},
         {"q": "Seni melipat kertas dari Jepang disebut?", "a": "origami"}
-
     ]
 }
 
-# 2. URL Gambar Wajib Direct Link (SSL/HTTPS)
 SAWNASTY_IMAGE_URL = "https://via.placeholder.com/1040x1040.png?text=Satpam+Nasty" 
 
 @app.route("/", methods=["GET"])
@@ -193,7 +188,7 @@ def handle_member_joined(event):
         reply_text = "Welcome Manizzz, yang ganteng gk welcome! 🦅\nJaga sikap atau Nasty bakal tindak tegas nih!\nKetik !help untuk melihat menu perintah."
         
         messages_to_send = [TextMessage(text=reply_text)]
-        if SAWNASTY_IMAGE_URL.startswith(""):
+        if SAWNASTY_IMAGE_URL.startswith("http"):
             messages_to_send.insert(0, ImageMessage(original_content_url=SAWNASTY_IMAGE_URL, preview_image_url=SAWNASTY_IMAGE_URL))
 
         line_bot_api.reply_message(
@@ -212,10 +207,6 @@ def handle_message(event):
     user_id = event.source.user_id
     user_message = event.message.text.strip()
     user_message_lower = user_message.lower()
-    print(f"User ID LINE: {user_id}")
-    print("" \
-    "abc")
-
     
     # Penambahan poin keaktifan per chat
     user_points[user_id] = user_points.get(user_id, 0) + 1
@@ -227,14 +218,12 @@ def handle_message(event):
         chat_id = group_id or user_id
         chat_points.setdefault(chat_id, {})[user_id] = chat_points.setdefault(chat_id, {}).get(user_id, 0) + 1
 
-        # Push helper memakai ApiClient baru agar tetap bisa dipakai oleh timer otomatis.
         def push_text(to_id, text):
             with ApiClient(configuration) as push_client:
                 push_api = MessagingApi(push_client)
                 push_api.push_message(
                     PushMessageRequest(to=to_id, messages=[TextMessage(text=text)])
                 )
-
 
         def get_user_name(uid):
             if group_id:
@@ -265,7 +254,6 @@ def handle_message(event):
                 )
             )
             return
-
 
         # --- DETEKSI MENTION USER OFF ---
         if hasattr(event.message, 'mention') and event.message.mention:
@@ -341,7 +329,6 @@ def handle_message(event):
                 "Gue bukan sekadar bot biasa, gue Satpam Nasty penjaga kedamaian grup ini! 🛡️✨",
                 "Panggil bot lagi gue tilang poin lu! Panggil Pak Nasty biar kerenan dikit! 🚨👮‍♂️",
                 "Mata gue memantau chat kalian 24 jam! Jangan panggil-panggil kalau nggak penting! 🦅👀"
-
             ]
             reply_messages.append(TextMessage(text=random.choice(bot_responses)))
 
@@ -422,6 +409,12 @@ def handle_message(event):
                         text=f"🎉 *BENAR!* Jawaban oleh {user_name} tepat! (+10 PTS)\n\n🏆 *QUIZ SELESAI!* Semua pertanyaan telah dijawab!"
                     ))
 
+        # --- INTEGRASI TRUTH OR DARE ---
+        if not reply_messages:
+            balasan_tod = proses_truth_dare(user_message)
+            if balasan_tod is not None:
+                reply_messages.append(TextMessage(text=balasan_tod))
+
         # --- COMMAND REGULER ---
         if not reply_messages:
             if user_message_lower.startswith("!lapor"):
@@ -435,7 +428,7 @@ def handle_message(event):
 
             elif user_message_lower in ["!help", "!menu"]:
                 help_text = (
-                     "🚨 POS JAGA SATPAM NASTY 🚨\n"
+                    "🚨 POS JAGA SATPAM NASTY 🚨\n"
                     "Ketik perintah di bawah untuk berinteraksi:\n\n"
                     "🎯 *GAME QUIZ*\n"
                     "• !join : Bergabung ke sesi quiz\n"
@@ -446,6 +439,9 @@ def handle_message(event):
                     "• !sambungkata create : Memulai game sambung kata  (+PTS)\n"
                     "• !tarot : Memulai game Tarot\n"
                     "• !tod help : Memulai ToD\n"
+                    "• !truth : Mengambil tantangan Truth\n"
+                    "• !dare : Mengambil tantangan Dare\n"
+                    "• !jodohku : Cek jodoh & ramalan cinta\n"
                     "• !tanya [pertanyaan] : Tanya ramalan Ya/Tidak ke Nasty\n\n"
                     "👮‍♂️ *STATUS & POS SATPAM*\n"
                     "• !off [alasan] : Set status kamu sedang off/sibuk\n"
@@ -455,7 +451,6 @@ def handle_message(event):
                     "• !profil : Cek profil LINE & total PTS keaktifan kamu\n"
                     "• !top : Lihat 5 warga paling aktif di grup\n"
                     "• !admin : Kontak Komandan / Admin utama"
-
                 )
                 reply_messages.append(TextMessage(text=help_text))
 
@@ -466,7 +461,7 @@ def handle_message(event):
                 jawaban_list = ["Ya, pasti!", "Gak mungkin, mimpi kamu.", "Kelihatannya iya.", "Tidak sama sekali.", "Bisa jadi sih."]
                 reply_messages.append(TextMessage(text=f"🔮 Nasty berkata: {random.choice(jawaban_list)}"))
 
-            elif user_message_lower in ["!getcall", "!panggil","@all"]:
+            elif user_message_lower in ["!getcall", "!panggil", "@all"]:
                 reply_messages.append(TextMessage(text="📢 PERHATIAN SEMUA MEMBER! 📢\nAda panggilan darurat di grup!"))
 
             elif user_message_lower == "!profil":
@@ -490,15 +485,15 @@ def handle_message(event):
                 else:
                     for rank, (uid, pts) in enumerate(sorted_points, start=1):
                         name = get_user_name(uid)
-                        lb_text += f"{rank}. {name} - {pts} PTS\\n"
+                        lb_text += f"{rank}. {name} - {pts} PTS\n"
 
                 reply_messages.append(TextMessage(text=lb_text))
 
-            # --- FITUR JODOH SAWNASTY (FLEX MESSAGE) ---\n            elif user_message_lower in ["!jodoh", "!jodohku", "!match"]:
+            # --- FITUR JODOH SAWNASTY (FLEX MESSAGE) ---
+            elif user_message_lower in ["!jodoh", "!jodohku", "!match"]:
                 user_name = get_user_name(user_id)
 
                 # 1. Ambil semua ID user yang pernah interaksi/terdata (selain diri sendiri)
-                # Kandidat jodoh dibatasi pada anggota yang pernah chat di grup ini.
                 available_members = [
                     uid for uid in chat_points.get(chat_id, {}).keys()
                     if uid != user_id
@@ -509,7 +504,6 @@ def handle_message(event):
                     partner_uid = random.choice(available_members)
                     partner_name = get_user_name(partner_uid)
                 else:
-                    # Fallback kalau belum ada member lain yang pernah chat di grup
                     partner_candidates = ["Siti Ronda", "Nabila Pos Jaga", "Gwen Sawnasty", "Luna Phoenix"]
                     partner_name = random.choice(partner_candidates)
                 
@@ -617,12 +611,6 @@ def handle_message(event):
                         f"💰 Kekayaan: {kekayaan}"
                     )
                     reply_messages.append(TextMessage(text=fallback_text))
-                    
-        # --- INTEGRASI TRUTH OR DARE ---
-        if not reply_messages:
-            balasan_tod = proses_truth_dare(user_message)
-            if balasan_tod is not None:
-                reply_messages.append(TextMessage(text=balasan_tod))
 
         # --- INTEGRASI GAME TAROT ---
         if not reply_messages:
