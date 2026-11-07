@@ -6,6 +6,7 @@ from sambung_kata import proses_sambung_kata
 from tarot_game import proses_tarot
 from whitelist_admin import cek_izin_admin
 from werewolf_game import proses_game
+from nasty_truth_dare import proses_truth_dare
 
 
 
@@ -39,7 +40,8 @@ handler = WebhookHandler(CHANNEL_SECRET)
 
 
 # Database Sederhana di Memory
-user_points = {}  # {user_id: points}
+user_points = {}  # Total poin per user, dipakai oleh !profil
+chat_points = {}  # Poin per chat/grup: {chat_id: {user_id: points}}
 user_status = {}  # {user_id: {"status": "off", "alasan": "...", "waktu_off": ...}}
 
 # Database Game Quiz
@@ -222,6 +224,8 @@ def handle_message(event):
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         group_id = getattr(event.source, 'group_id', None)
+        chat_id = group_id or user_id
+        chat_points.setdefault(chat_id, {})[user_id] = chat_points.setdefault(chat_id, {}).get(user_id, 0) + 1
 
         # Push helper memakai ApiClient baru agar tetap bisa dipakai oleh timer otomatis.
         def push_text(to_id, text):
@@ -441,6 +445,7 @@ def handle_message(event):
                     "🎮 *GAME & HIBURAN*\n"
                     "• !sambungkata create : Memulai game sambung kata  (+PTS)\n"
                     "• !tarot : Memulai game Tarot\n"
+                    "• !tod help : Memulai ToD\n"
                     "• !tanya [pertanyaan] : Tanya ramalan Ya/Tidak ke Nasty\n\n"
                     "👮‍♂️ *STATUS & POS SATPAM*\n"
                     "• !off [alasan] : Set status kamu sedang off/sibuk\n"
@@ -470,13 +475,15 @@ def handle_message(event):
                 reply_messages.append(TextMessage(text=f"👤 PROFIL KAMU\nNama LINE: {user_name}\nStatus: {st}\nTotal Poin Keaktifan: {user_points.get(user_id, 0)} PTS"))
 
             elif user_message_lower == "!top":
+                # Leaderboard hanya menampilkan anggota chat/grup ini.
+                points_in_chat = chat_points.get(chat_id, {})
                 sorted_points = sorted(
-                    user_points.items(),
+                    points_in_chat.items(),
                     key=lambda item: item[1],
                     reverse=True
                 )[:5]
 
-                lb_text = "🏆 LEADERBOARD MEMBER TERAKTIF 🏆\\n\\n"
+                lb_text = "🏆 LEADERBOARD MEMBER TERAKTIF 🏆\n\n"
 
                 if not sorted_points:
                     lb_text += "Belum ada data keaktifan member."
@@ -491,7 +498,11 @@ def handle_message(event):
                 user_name = get_user_name(user_id)
 
                 # 1. Ambil semua ID user yang pernah interaksi/terdata (selain diri sendiri)
-                available_members = [uid for uid in user_points.keys() if uid != user_id]
+                # Kandidat jodoh dibatasi pada anggota yang pernah chat di grup ini.
+                available_members = [
+                    uid for uid in chat_points.get(chat_id, {}).keys()
+                    if uid != user_id
+                ]
 
                 # 2. Jika ada member lain di data, pilih acak. Jika tidak ada, gunakan default fallback
                 if available_members:
@@ -607,6 +618,12 @@ def handle_message(event):
                     )
                     reply_messages.append(TextMessage(text=fallback_text))
                     
+        # --- INTEGRASI TRUTH OR DARE ---
+        if not reply_messages:
+            balasan_tod = proses_truth_dare(user_message)
+            if balasan_tod is not None:
+                reply_messages.append(TextMessage(text=balasan_tod))
+
         # --- INTEGRASI GAME TAROT ---
         if not reply_messages:
             balasan_tarot = proses_tarot(
